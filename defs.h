@@ -120,6 +120,7 @@ void            userinit(void);
 int             wait(int*);
 void            wakeup(void*);
 void            yield(void);
+int 			detach(int); 
 
 // swtch.S
 void            swtch(struct context**, struct context*);

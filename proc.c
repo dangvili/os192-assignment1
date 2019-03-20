@@ -542,3 +542,36 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int
+detach(int pid)
+{
+  /*
+  if(parent has child with @pid){
+    
+    detach the child from parent
+
+    connect child to the init process
+
+    return 0
+  }
+  else
+    return -1
+  
+  */ 
+
+  struct proc *p;
+  struct proc *curr_proc = myproc();
+  
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == curr_proc && p->pid == pid){
+      p->parent = initproc; 
+      release(&ptable.lock); 
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+
+}
