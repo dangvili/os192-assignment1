@@ -12,6 +12,8 @@ extern PriorityQueue pq;
 extern RoundRobinQueue rrq;
 extern RunningProcessesHolder rpholder;
 
+static int current_sched_strat = 1;      // (Added By Ido & Dan) holds the current scheduling strategy
+
 long long getAccumulator(struct proc *p) {
 	//Implement this function, remove the panic line.
 	panic("getAccumulator: not implemented\n");
@@ -160,6 +162,8 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  enqueue_by_state(p);
+
   release(&ptable.lock);
 }
 
@@ -225,6 +229,8 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+
+  enqueue_by_state(np);
 
   release(&ptable.lock);
 
@@ -396,7 +402,10 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
+  struct proc *p = myproc();
+  //myproc()->state = RUNNABLE;
+  p->state = RUNNABLE;
+  enqueue_by_state(p);
   sched();
   release(&ptable.lock);
 }
@@ -470,8 +479,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      enqueue_by_state(p);
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -496,8 +507,10 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING){
         p->state = RUNNABLE;
+        enqueue_by_state(p);
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -575,3 +588,61 @@ detach(int pid)
   return -1;
 
 }
+
+//enqueue according to state:
+void enqueue_by_state(struct proc* p){
+  if(current_sched_strat == SP_rrs)
+    rrq.enqueue(p); 
+  else if(current_sched_strat == SP_ps)
+    pq.put(p); 
+  else if(current_sched_strat == SP_eps) //??
+    pq.put(p); 
+  else
+    panic("incorrect scheduling strategy state\n"); 
+}
+
+// Schedule policies Strategy Array:
+// static void (*sched_strat[])(void) = {
+// [SP_rrs]  sp_round_robin, 
+// [SP_ps]   sp_priority,
+// [SP_eps]  sp_ext_priority,
+
+// }; 
+
+//Round Robin Sheduling Algorithm:
+void sp_round_robin (void){
+
+  struct cpu *c = mycpu();
+
+  acquire(&ptable.lock);
+
+  struct proc *p = rrq.dequeue(); 
+  // Switch to chosen process.  It is the process's job
+  // to release ptable.lock and then reacquire it
+  // before jumping back to us.
+  c->proc = p;
+  switchuvm(p);
+  p->state = RUNNING;
+
+  swtch(&(c->scheduler), p->context);
+  switchkvm();
+
+  // Process is done running for now.
+  // It should have changed its p->state before coming back.
+  c->proc = 0;
+
+  release(&ptable.lock); 
+}
+
+//Priority Scheduling Algorithm:
+
+void sp_priority (void){
+
+}
+
+//Extended Priority Scheduling Algorithm:
+
+void sp_ext_priority (void){
+
+}
+

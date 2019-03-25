@@ -1,5 +1,12 @@
 #pragma once
 
+//constants for scheduling algorithms
+#define SP_rrs    1
+#define SP_ps     2
+#define SP_eps    3
+
+
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID

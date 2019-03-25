@@ -189,3 +189,10 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+//Added by Dan & Ido:
+void 			enqueue_by_state(struct proc*);
+
+void 			sp_round_robin (void);
+void 			sp_priority (void);
+void 			sp_ext_priority (void);
