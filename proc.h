@@ -10,6 +10,7 @@
 
 //misc. constants
 #define LLONG_MAX 9223372036854775807
+#define TQ_THRESHOLD 100
 
 
 
@@ -66,6 +67,7 @@ struct proc {
   char name[16];                 // Process name (debugging)
   long long accumulator;         // priority's accumulator
   int priority;                  // process's priority
+  long long last_tq;             // a number indicating the last time the process has run
 };
 
 // Process memory is laid out contiguously, low addresses first:

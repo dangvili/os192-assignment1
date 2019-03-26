@@ -8,11 +8,14 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
 extern PriorityQueue pq;
 extern RoundRobinQueue rrq;
 extern RunningProcessesHolder rpholder;
 
 static int current_sched_strat = 1;      // (Added By Ido & Dan) holds the current scheduling strategy
+
+static long long tq_timestamp = 1;       // accumulates the number of timestamp since the OS initiated
 
 long long getAccumulator(struct proc *p) {
 	return p->accumulator;
@@ -629,6 +632,9 @@ void swtch_to_proc(struct proc* p, struct cpu* c){
   switchuvm(p);
   p->state = RUNNING;
 
+  p->last_tq = tq_timestamp; 
+  ++tq_timestamp; 
+
   rpholder.add(p); 
 
   swtch(&(c->scheduler), p->context);
@@ -703,5 +709,50 @@ long long min (long long a, long long b){
 
 void sp_ext_priority (void){
 
+  struct cpu *c = mycpu();
+
+  acquire(&ptable.lock);
+
+  struct proc *p = proc_to_run(); 
+
+  if(p == null)
+    return;
+
+  swtch_to_proc(p, c); 
+
+  if(p->state == RUNNABLE){
+    p->accumulator += p->priority;  
+    pq.put(p);
+  }
+
+  release(&ptable.lock); 
+
 }
+
+struct proc* proc_to_run(void){
+  if(tq_timestamp%TQ_THRESHOLD == 0)
+    return proc_with_min_timestamp(); 
+
+  return pq.extractMin(); 
+  
+}
+
+struct proc* proc_with_min_timestamp(void) {
+
+  struct proc *p;
+  struct proc *result = null;
+  long long min_timestamp = LLONG_MAX;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == RUNNABLE && min_timestamp > p->last_tq){
+      min_timestamp = p->last_tq;
+      result = p; 
+    }
+
+  }
+  return result;
+}
+
+
+
 

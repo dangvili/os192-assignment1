@@ -198,6 +198,9 @@ long long		min(long long, long long) ;
 
 void 			enqueue_by_state(struct proc*);
 
+struct proc* 	proc_to_run(void); 
+struct proc*	proc_with_min_timestamp(void);
+
 void 			sp_round_robin (void);
 void 			sp_priority (void);
 void 			sp_ext_priority (void);
