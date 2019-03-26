@@ -29,9 +29,9 @@ int
 sys_wait(void)
 {
   int* status;
-  if(argptr(0, (void*)&status, sizeof(status)) < 0){
+  if(argptr(0, (void*)&status, sizeof(status)) < 0)
     return wait(null);
-  }
+  
   return wait(status);
 }
 
@@ -108,4 +108,17 @@ sys_detach(void)
     return -1; 
 
   return detach(pid); 
+}
+
+int
+sys_priority(void)
+{
+  int prior; 
+
+  if(argint(0, &prior) < 0)
+    return -1; 
+
+  priority(prior);
+
+  return prior; 
 }

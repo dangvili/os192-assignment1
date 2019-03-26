@@ -5,6 +5,12 @@
 #define SP_ps     2
 #define SP_eps    3
 
+// constants for priority
+#define NP_PRIORITY 5
+
+//misc. constants
+#define LLONG_MAX 9223372036854775807
+
 
 
 // Per-CPU state
@@ -58,6 +64,8 @@ struct proc {
   struct file *ofile[NOFILE];    // Open files
   struct inode *cwd;             // Current directory  
   char name[16];                 // Process name (debugging)
+  long long accumulator;         // priority's accumulator
+  int priority;                  // process's priority
 };
 
 // Process memory is laid out contiguously, low addresses first:

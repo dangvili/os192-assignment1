@@ -15,8 +15,7 @@ extern RunningProcessesHolder rpholder;
 static int current_sched_strat = 1;      // (Added By Ido & Dan) holds the current scheduling strategy
 
 long long getAccumulator(struct proc *p) {
-	//Implement this function, remove the panic line.
-	panic("getAccumulator: not implemented\n");
+	return p->accumulator;
 }
 
 struct {
@@ -164,6 +163,11 @@ userinit(void)
 
   enqueue_by_state(p);
 
+  priority(NP_PRIORITY);
+
+  if(current_sched_strat == SP_ps)
+    p->accumulator = get_min_acc(); 
+
   release(&ptable.lock);
 }
 
@@ -231,6 +235,11 @@ fork(void)
   np->state = RUNNABLE;
 
   enqueue_by_state(np);
+
+  priority(NP_PRIORITY);
+
+  if(current_sched_strat == SP_ps)
+    np->accumulator = get_min_acc();  
 
   release(&ptable.lock);
 
@@ -481,7 +490,10 @@ wakeup1(void *chan)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      if(current_sched_strat == SP_ps)
+        p->accumulator = get_min_acc(); 
       enqueue_by_state(p);
+
     }
 }
 
@@ -555,17 +567,10 @@ procdump(void)
     cprintf("\n");
   }
 }
-
-int
-detach(int pid)
-{
-  /*
+/*
   if(parent has child with @pid){
-    
     detach the child from parent
-
     connect child to the init process
-
     return 0
   }
   else
@@ -573,6 +578,9 @@ detach(int pid)
   
   */ 
 
+int
+detach(int pid)
+{
   struct proc *p;
   struct proc *curr_proc = myproc();
   
@@ -586,16 +594,20 @@ detach(int pid)
   }
   release(&ptable.lock);
   return -1;
+}
 
+void 
+priority(int priority)
+{
+  struct proc *curr_proc = myproc();
+  curr_proc->priority = priority;
 }
 
 //enqueue according to state:
 void enqueue_by_state(struct proc* p){
   if(current_sched_strat == SP_rrs)
     rrq.enqueue(p); 
-  else if(current_sched_strat == SP_ps)
-    pq.put(p); 
-  else if(current_sched_strat == SP_eps) //??
+  else if(current_sched_strat == SP_ps || current_sched_strat == SP_eps)
     pq.put(p); 
   else
     panic("incorrect scheduling strategy state\n"); 
@@ -609,20 +621,15 @@ void enqueue_by_state(struct proc* p){
 
 // }; 
 
-//Round Robin Sheduling Algorithm:
-void sp_round_robin (void){
-
-  struct cpu *c = mycpu();
-
-  acquire(&ptable.lock);
-
-  struct proc *p = rrq.dequeue(); 
+void swtch_to_proc(struct proc* p, struct cpu* c){
   // Switch to chosen process.  It is the process's job
   // to release ptable.lock and then reacquire it
   // before jumping back to us.
   c->proc = p;
   switchuvm(p);
   p->state = RUNNING;
+
+  rpholder.add(p); 
 
   swtch(&(c->scheduler), p->context);
   switchkvm();
@@ -631,6 +638,23 @@ void sp_round_robin (void){
   // It should have changed its p->state before coming back.
   c->proc = 0;
 
+  rpholder.remove(p);
+}
+
+//Round Robin Sheduling Algorithm:
+void sp_round_robin (void){
+
+  struct cpu *c = mycpu();
+
+  acquire(&ptable.lock);
+
+  struct proc *p = rrq.dequeue(); 
+
+  if(p == null)
+    return;
+
+  swtch_to_proc(p, c); 
+
   release(&ptable.lock); 
 }
 
@@ -638,6 +662,41 @@ void sp_round_robin (void){
 
 void sp_priority (void){
 
+  struct cpu *c = mycpu();
+
+  acquire(&ptable.lock);
+
+  struct proc *p = pq.extractMin(); 
+
+  if(p == null)
+    return;
+
+  swtch_to_proc(p, c); 
+
+  if(p->state == RUNNABLE){
+    p->accumulator += p->priority;  
+    pq.put(p);
+  }
+
+  release(&ptable.lock); 
+
+}
+
+long long get_min_acc(){
+  long long runnable_acc = LLONG_MAX; 
+  boolean success_pq = pq.getMinAccumulator(&runnable_acc); 
+
+  long long running_acc = LLONG_MAX; 
+  boolean success_rp = rpholder.getMinAccumulator(&running_acc);
+
+  if(success_pq || success_rp)
+    return min(runnable_acc, running_acc);  
+
+  return 0; 
+}
+
+long long min (long long a, long long b){
+  return a > b ? b : a; 
 }
 
 //Extended Priority Scheduling Algorithm:

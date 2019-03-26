@@ -120,7 +120,8 @@ void            userinit(void);
 int             wait(int*);
 void            wakeup(void*);
 void            yield(void);
-int 			detach(int); 
+int 			detach(int);
+void 			priority(int);  
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -191,6 +192,10 @@ void            clearpteu(pde_t *pgdir, char *uva);
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
 
 //Added by Dan & Ido:
+void 			swtch_to_proc(struct proc*, struct cpu*);
+long long 		get_min_acc(void); 
+long long		min(long long, long long) ;
+
 void 			enqueue_by_state(struct proc*);
 
 void 			sp_round_robin (void);
