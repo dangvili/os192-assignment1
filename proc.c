@@ -13,6 +13,13 @@ extern PriorityQueue pq;
 extern RoundRobinQueue rrq;
 extern RunningProcessesHolder rpholder;
 
+static void (*sched_policy_arr[])(struct cpu*) = {
+[SP_rrs]  sp_round_robin, 
+[SP_ps]   sp_priority,
+[SP_eps]  sp_ext_priority,
+
+}; 
+
 static int current_sched_strat = 1;      // (Added By Ido & Dan) holds the current scheduling strategy
 
 static long long tq_timestamp = 1;       // accumulates the number of timestamp since the OS initiated
@@ -366,7 +373,10 @@ scheduler(void)
     sti();
 
     // Loop over process table looking for process to run.
-    sched_policy_arr[current_sched_strat]();
+    acquire(&ptable.lock);
+    sched_policy_arr[current_sched_strat](c);
+    release(&ptable.lock);
+
   }
 }
 
@@ -593,11 +603,10 @@ priority(int priority)
   curr_proc->priority = priority;
 }
 
+
 void 
 policy (int policy_iden)
 {
-  if(current_sched_strat == policy_iden || current_sched_strat == SP_eps)
-    return;
 
   if(current_sched_strat == SP_rrs){
     acquire(&ptable.lock);
@@ -611,21 +620,21 @@ policy (int policy_iden)
     release(&ptable.lock); 
   }
 
-  else
+  else if(current_sched_strat != policy_iden && current_sched_strat != SP_eps)
     panic("the desired policy does not exist");
 
 }
 
 void set_all_accumulators(int value){
   struct proc *p;
-  
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     p->accumulator = value;
 }
 
 void set_filtered_priorities(int filter, int value){
   struct proc *p;
-  
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->priority == filter)
       p->accumulator = value;
@@ -640,7 +649,6 @@ void enqueue_by_state(struct proc* p){
   else
     panic("incorrect scheduling strategy state\n"); 
 }
-
 
 void swtch_to_proc(struct proc* p, struct cpu* c){
   // Switch to chosen process.  It is the process's job
@@ -666,43 +674,27 @@ void swtch_to_proc(struct proc* p, struct cpu* c){
 }
 
 //Round Robin Sheduling Algorithm:
-void sp_round_robin (void){
-
-  struct cpu *c = mycpu();
-
-  acquire(&ptable.lock);
-
-  struct proc *p = rrq.dequeue(); 
-
-  if(p == null)
-    return;
-
-  swtch_to_proc(p, c); 
-
-  release(&ptable.lock); 
+void sp_round_robin (struct cpu* c){
+  if(!rrq.isEmpty()){
+    struct proc *p = rrq.dequeue(); 
+    swtch_to_proc(p, c); 
+  }
 }
 
 //Priority Scheduling Algorithm:
 
-void sp_priority (void){
+void sp_priority (struct cpu* c){
+  if(!pq.isEmpty()){
+    
+    struct proc *p = pq.extractMin(); 
+    swtch_to_proc(p, c); 
 
-  struct cpu *c = mycpu();
+    if(p->state == RUNNABLE){
+      p->accumulator += p->priority;  
+      pq.put(p);
+    }
 
-  acquire(&ptable.lock);
-
-  struct proc *p = pq.extractMin(); 
-
-  if(p == null)
-    return;
-
-  swtch_to_proc(p, c); 
-
-  if(p->state == RUNNABLE){
-    p->accumulator += p->priority;  
-    pq.put(p);
   }
-
-  release(&ptable.lock); 
 
 }
 
@@ -725,25 +717,19 @@ long long min (long long a, long long b){
 
 //Extended Priority Scheduling Algorithm:
 
-void sp_ext_priority (void){
+void sp_ext_priority (struct cpu* c){
 
-  struct cpu *c = mycpu();
+  if(!pq.isEmpty()){
+    
+    struct proc *p = proc_to_run(); 
 
-  acquire(&ptable.lock);
+    swtch_to_proc(p, c); 
 
-  struct proc *p = proc_to_run(); 
-
-  if(p == null)
-    return;
-
-  swtch_to_proc(p, c); 
-
-  if(p->state == RUNNABLE){
-    p->accumulator += p->priority;  
-    pq.put(p);
+    if(p->state == RUNNABLE){
+      p->accumulator += p->priority;  
+      pq.put(p);
+    }
   }
-
-  release(&ptable.lock); 
 
 }
 
