@@ -121,7 +121,8 @@ int             wait(int*);
 void            wakeup(void*);
 void            yield(void);
 int 			detach(int);
-void 			priority(int);  
+void 			priority(int);
+void 			policy(int);  
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -204,3 +205,7 @@ struct proc*	proc_with_min_timestamp(void);
 void 			sp_round_robin (void);
 void 			sp_priority (void);
 void 			sp_ext_priority (void);
+
+void 			set_all_accumulators(int);
+
+void 			set_filtered_priorities(int,int);

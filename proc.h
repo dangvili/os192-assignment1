@@ -11,6 +11,10 @@
 //misc. constants
 #define LLONG_MAX 9223372036854775807
 #define TQ_THRESHOLD 100
+#define RRS_ACC_VAL 0
+
+
+
 
 
 

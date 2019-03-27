@@ -17,6 +17,14 @@ static int current_sched_strat = 1;      // (Added By Ido & Dan) holds the curre
 
 static long long tq_timestamp = 1;       // accumulates the number of timestamp since the OS initiated
 
+//Schedule policies Strategy Array:
+static void (*sched_policy_arr[])(void) = {
+[SP_rrs]  sp_round_robin, 
+[SP_ps]   sp_priority,
+[SP_eps]  sp_ext_priority,
+
+}; 
+
 long long getAccumulator(struct proc *p) {
 	return p->accumulator;
 }
@@ -350,7 +358,6 @@ wait(int* status)
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -359,27 +366,7 @@ scheduler(void)
     sti();
 
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
-    release(&ptable.lock);
-
+    sched_policy_arr[current_sched_strat]();
   }
 }
 
@@ -606,6 +593,44 @@ priority(int priority)
   curr_proc->priority = priority;
 }
 
+void 
+policy (int policy_iden)
+{
+  if(current_sched_strat == policy_iden || current_sched_strat == SP_eps)
+    return;
+
+  if(current_sched_strat == SP_rrs){
+    acquire(&ptable.lock);
+    set_all_accumulators(RRS_ACC_VAL);
+    release(&ptable.lock); 
+  }
+
+  else if(current_sched_strat == SP_ps){
+    acquire(&ptable.lock);
+    set_filtered_priorities(0,1);
+    release(&ptable.lock); 
+  }
+
+  else
+    panic("the desired policy does not exist");
+
+}
+
+void set_all_accumulators(int value){
+  struct proc *p;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    p->accumulator = value;
+}
+
+void set_filtered_priorities(int filter, int value){
+  struct proc *p;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->priority == filter)
+      p->accumulator = value;
+}
+
 //enqueue according to state:
 void enqueue_by_state(struct proc* p){
   if(current_sched_strat == SP_rrs)
@@ -616,13 +641,6 @@ void enqueue_by_state(struct proc* p){
     panic("incorrect scheduling strategy state\n"); 
 }
 
-// Schedule policies Strategy Array:
-// static void (*sched_strat[])(void) = {
-// [SP_rrs]  sp_round_robin, 
-// [SP_ps]   sp_priority,
-// [SP_eps]  sp_ext_priority,
-
-// }; 
 
 void swtch_to_proc(struct proc* p, struct cpu* c){
   // Switch to chosen process.  It is the process's job
