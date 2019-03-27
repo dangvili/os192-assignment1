@@ -122,3 +122,16 @@ sys_priority(void)
 
   return prior; 
 }
+
+int
+sys_policy(void)
+{
+  int policy_iden; 
+
+  if(argint(0, &policy_iden) < 0)
+    return -1; 
+
+  policy(policy_iden);
+
+  return policy_iden;
+}

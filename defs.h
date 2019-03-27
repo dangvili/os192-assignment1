@@ -122,6 +122,7 @@ void            wakeup(void*);
 void            yield(void);
 int 			detach(int);
 void 			priority(int);  
+void 			policy(int); 
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -201,6 +202,9 @@ void 			enqueue_by_state(struct proc*);
 struct proc* 	proc_to_run(void); 
 struct proc*	proc_with_min_timestamp(void);
 
-void 			sp_round_robin (void);
-void 			sp_priority (void);
-void 			sp_ext_priority (void);
+void 			sp_round_robin (struct cpu*);
+void 			sp_priority (struct cpu*);
+void 			sp_ext_priority (struct cpu*);
+
+void 			set_all_accumulators(int);
+void 			set_filtered_priorities(int,int);
