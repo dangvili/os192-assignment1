@@ -174,7 +174,7 @@ userinit(void)
 
   enqueue_by_state(p);
 
-  priority(NP_PRIORITY);
+  p->priority = NP_PRIORITY;
 
   if(current_sched_strat == SP_ps)
     p->accumulator = get_min_acc(); 
@@ -247,7 +247,7 @@ fork(void)
 
   enqueue_by_state(np);
 
-  priority(NP_PRIORITY);
+  np->priority = NP_PRIORITY;
 
   if(current_sched_strat == SP_ps)
     np->accumulator = get_min_acc();  
