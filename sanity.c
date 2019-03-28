@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "traps.h"
 #include "memlayout.h"
+#include "x86.h"
 
 
 //detach constants:
@@ -15,9 +16,34 @@
 #define WRONG_PID 99
 #define SUCCESS 0
 #define FAILURE -1
+#define PERF_TEST_CHILDS 4
 
 //exit&wait constants:
 #define WPERIOD_E 150
+
+struct perf {
+  int ctime;
+  int ttime;
+  int stime;
+  int retime;
+  int rutime;
+};
+
+
+struct perf perf1;
+struct perf perf2;
+struct perf perf3;
+struct perf perf4;
+
+
+unsigned int fib(unsigned int n)
+{
+    if (n == 0)
+        return 0;
+     if (n == 1)
+        return 1;
+     return fib(n - 1) + fib(n - 2);
+}
 
 
 void exit_and_wait_test(){
@@ -96,10 +122,100 @@ void detach_test(){
 
 }
 
+void priority_policy_test(){
+    int pids[] ={0,0,0,0};
+    policy(2);
+    pids[0] = fork(); 
+    if(pids[0] == CHILD){
+        priority(4);
+        fib(36);
+        printf(2, "order\n");
+        exit(0);
+    }
+
+    pids[1] = fork(); 
+    if(pids[1] == CHILD){
+        priority(3);
+        fib(36);
+        printf(2, "in ");
+        exit(0);
+    }
+
+    pids[2] = fork(); 
+    if(pids[2] == CHILD){
+        priority(2);
+        fib(36);
+        printf(2 , "be ");
+        exit(0);
+    }
+
+    pids[3] = fork(); 
+    if(pids[3] == CHILD){
+       priority(1);
+       fib(36);
+       printf(2 , "should ");
+       exit(0);
+    }
+
+    wait(null);
+    wait(null);
+    wait(null);
+    wait(null);
+
+    exit(0);
+}
+
+void performance_test(){
+    int pids[] ={0,0,0,0};
+    policy(1);
+    pids[0] = fork(); 
+    if(pids[0] == CHILD){
+        sleep(200);
+        exit(0);
+    }
+
+    pids[1] = fork(); 
+    if(pids[1] == CHILD){
+        sleep(400);
+        exit(0);
+    }
+
+    pids[2] = fork(); 
+    if(pids[2] == CHILD){
+        sleep(800);
+        exit(0);
+    }
+
+    pids[3] = fork(); 
+    if(pids[3] == CHILD){
+       sleep(1000);
+       exit(0);
+    }
+
+    int pid;
+    pid = wait_stat(null,&perf1);
+    if(pid != pids[0])
+        printf(2 , "error in perf_test");
+    pid = wait_stat(null,&perf2);
+    if(pid != pids[1])
+        printf(2 , "error in perf_test");
+    pid = wait_stat(null,&perf3);
+    if(pid != pids[2])
+        printf(2 , "error in perf_test");
+    pid = wait_stat(null,&perf4);
+    if(pid != pids[3])
+        printf(2 , "error in perf_test");
+    printf(1 , "Perf Test Passed");
+
+    exit(0);
+}
+
 
 int main (int argc, char *argv[]){
     exit_and_wait_test();
-    detach_test();
+    priority_policy_test();
+    //performance_test();
+    //detach_test();
     return 0;
 }
 
