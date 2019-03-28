@@ -13,6 +13,11 @@
 
 #define MAXARGS 10
 
+#define MAX_PATH_BUFFER_SIZE 1000
+#define MAX_SINGLE_PATH_LENGTH 100
+#define PATH_DELIMITER ':'
+#define INITIAL_PATHS "/:"
+
 struct cmd {
   int type;
 };
@@ -53,10 +58,27 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 
+
+static char path_buffer[MAX_PATH_BUFFER_SIZE];
+
+//Helper function. parses the path buffer
+int
+extract_next_path(char * result_path , int i)
+{
+	for(int curr = i; curr < strlen(result_path); curr++){
+		if(path_buffer[curr]==':'){
+			memmove(result_path , &path_buffer[i] , curr - i);
+			return curr+1;
+		}
+	}
+	return -1;
+}
+
 // Execute cmd.  Never returns.
 void
 runcmd(struct cmd *cmd)
 {
+
   int p[2];
   struct backcmd *bcmd;
   struct execcmd *ecmd;
@@ -72,11 +94,35 @@ runcmd(struct cmd *cmd)
     panic("runcmd");
 
   case EXEC:
+
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
     exec(ecmd->argv[0], ecmd->argv);
     printf(2, "exec %s failed\n", ecmd->argv[0]);
+
+    if(ecmd->argv[0][0]!='/'){
+    	int fd = open("/path" , O_RDONLY);
+
+    	int chars_read = read(fd , path_buffer , MAX_PATH_BUFFER_SIZE);
+    	int i = 0;
+    	char curr_path[MAX_SINGLE_PATH_LENGTH];
+
+    	while(i>=0 && i<chars_read){
+    		memset(curr_path , 0 , MAX_SINGLE_PATH_LENGTH);
+    		i = extract_next_path(curr_path , i);
+    		memmove(&curr_path[strlen(curr_path)] , ecmd->argv[0] , strlen(ecmd->argv[0]));
+
+    		if(i!=-1){
+    			ecmd->argv[0] = curr_path;
+    			exec(ecmd->argv[0], ecmd->argv);
+    			printf(2, "exec %s failed\n", ecmd->argv[0]);
+    		}
+    	}
+    	close(fd);
+	}
+
+
     break;
 
   case REDIR:
@@ -154,6 +200,10 @@ main(void)
       break;
     }
   }
+
+  	fd = open("/path", O_CREATE | O_RDWR);
+  	write(fd , INITIAL_PATHS , strlen(INITIAL_PATHS));
+  	close(fd);
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
