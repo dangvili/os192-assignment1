@@ -8,12 +8,37 @@
 #include "traps.h"
 #include "memlayout.h"
 
+
+//detach constants:
 #define WPERIOD 700
 #define CHILD 0
 #define WRONG_PID 99
 #define SUCCESS 0
 #define FAILURE -1
 
+//exit&wait constants:
+#define WPERIOD_E 150
+
+
+void exit_and_wait_test(){
+    int e_status[] = {0,0,0,0,0};
+    for(int i=0; i<5; ++i){
+        if(fork() == 0){
+            sleep(WPERIOD_E);
+            exit(i);
+        }
+
+        wait(&e_status[i]);
+
+        if(e_status[i] != i){
+            printf(2,"TEST FAILED");
+            exit(-1);
+        }
+        printf(1,"%d child exit status is: %d\n",i, e_status[i]);
+    }
+
+    printf(1,"WAIT&EXIT_TEST - PASSED!!!!!!!!!!!\n");
+}
 
 
 void detach_test(){
@@ -63,7 +88,7 @@ void detach_test(){
         printf(2, "detach has faild - existing child test");
 
     else
-        printf(1,"PASSED!!!!!!!!!!!\n");
+        printf(1,"DETACH_TEST - PASSED!!!!!!!!!!!\n");
     
     sleep(WPERIOD * 2);
 
@@ -73,6 +98,7 @@ void detach_test(){
 
 
 int main (int argc, char *argv[]){
+    exit_and_wait_test();
     detach_test();
     return 0;
 }
