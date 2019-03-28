@@ -1,0 +1,15 @@
+EXIT&WAIT - EXPECTED:
+0 child exit status is: 0
+1 child exit status is: 1
+2 child exit status is: 2
+3 child exit status is: 3
+4 child exit status is: 4
+WAIT&EXIT_TEST - PASSED!!!!!!!!!!!
+
+DETACH - EXPECTED:
+DETACH_TEST - PASSED!!!!!!!!!!!
+zombie!
+zombie!
+zombie!
+zombie!
+zombie!
