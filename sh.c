@@ -16,7 +16,7 @@
 #define MAX_PATH_BUFFER_SIZE 1000
 #define MAX_SINGLE_PATH_LENGTH 100
 #define PATH_DELIMITER ':'
-#define INITIAL_PATHS "/:"
+#define INITIAL_PATHS "/binbin/:/fml/:"
 
 struct cmd {
   int type;
@@ -65,8 +65,8 @@ static char path_buffer[MAX_PATH_BUFFER_SIZE];
 int
 extract_next_path(char * result_path , int i)
 {
-	for(int curr = i; curr < strlen(result_path); curr++){
-		if(path_buffer[curr]==':'){
+	for(int curr = i; curr < strlen(path_buffer); curr++){
+		if(path_buffer[curr]==PATH_DELIMITER){
 			memmove(result_path , &path_buffer[i] , curr - i);
 			return curr+1;
 		}
@@ -107,11 +107,14 @@ runcmd(struct cmd *cmd)
     	int chars_read = read(fd , path_buffer , MAX_PATH_BUFFER_SIZE);
     	int i = 0;
     	char curr_path[MAX_SINGLE_PATH_LENGTH];
+    	char initial_argv[strlen(ecmd->argv[0])+1];
+    	memset(initial_argv , 0 , strlen(initial_argv));
+    	memmove(initial_argv , ecmd->argv[0] , strlen(ecmd->argv[0]));
 
     	while(i>=0 && i<chars_read){
     		memset(curr_path , 0 , MAX_SINGLE_PATH_LENGTH);
     		i = extract_next_path(curr_path , i);
-    		memmove(&curr_path[strlen(curr_path)] , ecmd->argv[0] , strlen(ecmd->argv[0]));
+    		memmove(&curr_path[strlen(curr_path)] , initial_argv , strlen(initial_argv));
 
     		if(i!=-1){
     			ecmd->argv[0] = curr_path;
