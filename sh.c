@@ -67,7 +67,7 @@ extract_next_path(char * result_path , int i)
 {
 	for(int curr = i; curr < strlen(result_path); curr++){
 		if(path_buffer[curr]==':'){
-			safestrcpy(result_path , &path_buffer[i] , curr - i);
+			memmove(result_path , &path_buffer[i] , curr - i);
 			return curr+1;
 		}
 	}
@@ -109,8 +109,9 @@ runcmd(struct cmd *cmd)
     	char curr_path[MAX_SINGLE_PATH_LENGTH];
 
     	while(i>=0 && i<chars_read){
+    		memset(curr_path , 0 , MAX_SINGLE_PATH_LENGTH);
     		i = extract_next_path(curr_path , i);
-    		safestrcpy(&curr_path[strlen(curr_path)] , ecmd->argv[0] , strlen(ecmd->argv[0]));
+    		memmove(&curr_path[strlen(curr_path)] , ecmd->argv[0] , strlen(ecmd->argv[0]));
 
     		if(i!=-1){
     			ecmd->argv[0] = curr_path;
