@@ -25,12 +25,6 @@ static int current_sched_strat = 1;      // (Added By Ido & Dan) holds the curre
 static long long tq_timestamp = 1;       // accumulates the number of timestamp since the OS initiated
 
 //Schedule policies Strategy Array:
-static void (*sched_policy_arr[])(void) = {
-[SP_rrs]  sp_round_robin, 
-[SP_ps]   sp_priority,
-[SP_eps]  sp_ext_priority,
-
-}; 
 
 long long getAccumulator(struct proc *p) {
 	return p->accumulator;
@@ -250,8 +244,12 @@ fork(void)
 
   acquire(&ptable.lock);
 
+  np->ctime = ticks; 
+
   np->state = RUNNABLE;
 
+  update_pref_field(-ticks, RETIME, np);
+  
   enqueue_by_state(np);
 
   np->priority = NP_PRIORITY;
@@ -304,8 +302,12 @@ exit(int status)
     }
   }
 
+  curproc->status = status;
+
   // Jump into the scheduler, never to return.
+  update_pref_field(-ticks, RUTIME, curproc);
   curproc->state = ZOMBIE;
+  curproc->ttime = ticks;
   sched();
   panic("zombie exit");
 }
@@ -338,6 +340,8 @@ wait(int* status)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        if(status != null)
+          *status = p->status;
         release(&ptable.lock);
         return pid;
       }
@@ -413,7 +417,9 @@ yield(void)
   acquire(&ptable.lock);  //DOC: yieldlock
   struct proc *p = myproc();
   //myproc()->state = RUNNABLE;
+  update_pref_field(ticks, RUTIME, p);
   p->state = RUNNABLE;
+  update_pref_field(-ticks, RETIME, p);
   enqueue_by_state(p);
   sched();
   release(&ptable.lock);
@@ -465,7 +471,12 @@ sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
+
+  update_pref_field(-ticks, RUTIME, p);
+
   p->state = SLEEPING;
+
+  update_pref_field(-ticks, STIME, p);
 
   sched();
 
@@ -489,7 +500,9 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan){
+      update_pref_field(ticks, STIME, p);
       p->state = RUNNABLE;
+      update_pref_field(-ticks, RETIME, p);
       if(current_sched_strat == SP_ps)
         p->accumulator = get_min_acc(); 
       enqueue_by_state(p);
@@ -520,7 +533,9 @@ kill(int pid)
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING){
+        update_pref_field(ticks, STIME, p);
         p->state = RUNNABLE;
+        update_pref_field(-ticks, RETIME, p);
         enqueue_by_state(p);
       }
       release(&ptable.lock);
@@ -599,8 +614,8 @@ detach(int pid)
 void 
 priority(int priority)
 {
-  struct proc *curr_proc = myproc();
-  curr_proc->priority = priority;
+  if((priority>0 && priority<=10 ) || (priority == 0 && current_sched_strat == SP_eps))
+    myproc()->priority = priority;
 }
 
 
@@ -608,21 +623,83 @@ void
 policy (int policy_iden)
 {
 
-  if(current_sched_strat == SP_rrs){
+  if(/*policy_iden != current_sched_strat && */policy_iden<=3 && policy_iden>0){//new_policy!=curr_policy && 0<new_policy<=3
     acquire(&ptable.lock);
-    set_all_accumulators(RRS_ACC_VAL);
+    if(policy_iden == SP_eps && current_sched_strat == SP_rrs)//new_policy = 3 && curr_policy = 1
+      rrq.switchToPriorityQueuePolicy();
+    
+
+    else if(policy_iden == SP_rrs){//new_policy = 1
+      set_all_accumulators(RRS_ACC_VAL);
+      pq.switchToRoundRobinPolicy(); 
+    }
+
+    else /*if(policy_iden == SP_ps)*/{//new_policy = 2
+      set_filtered_priorities(0,1);
+      if(current_sched_strat == SP_rrs)
+        rrq.switchToPriorityQueuePolicy();
+    }
+
+    current_sched_strat = policy_iden;
     release(&ptable.lock); 
   }
 
-  else if(current_sched_strat == SP_ps){
-    acquire(&ptable.lock);
-    set_filtered_priorities(0,1);
-    release(&ptable.lock); 
+  else
+    panic("the desired policy is out of bounds");
+
+}
+
+int
+wait_stat(int* status, struct perf* performace)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+
+        performace->ctime = p->ctime; 
+        performace->ttime = p->ttime;
+        performace->stime = p->stime;
+        performace->retime = p->retime;
+        performace->rutime = p->rutime;
+
+        p->state = UNUSED;
+
+        if(status != null)
+          *status = p->status;
+
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
-
-  else if(current_sched_strat != policy_iden && current_sched_strat != SP_eps)
-    panic("the desired policy does not exist");
-
 }
 
 void set_all_accumulators(int value){
@@ -637,7 +714,7 @@ void set_filtered_priorities(int filter, int value){
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->priority == filter)
-      p->accumulator = value;
+      p->priority = value;
 }
 
 //enqueue according to state:
@@ -656,7 +733,12 @@ void swtch_to_proc(struct proc* p, struct cpu* c){
   // before jumping back to us.
   c->proc = p;
   switchuvm(p);
+
+  update_pref_field(ticks, RETIME, p);
+
   p->state = RUNNING;
+
+  update_pref_field(-ticks, RUTIME, p);
 
   p->last_tq = tq_timestamp; 
   ++tq_timestamp; 
@@ -668,7 +750,10 @@ void swtch_to_proc(struct proc* p, struct cpu* c){
 
   // Process is done running for now.
   // It should have changed its p->state before coming back.
+  
+  //update_pref_field(ticks, RUTIME, p);
   c->proc = 0;
+
 
   rpholder.remove(p);
 }
@@ -691,7 +776,7 @@ void sp_priority (struct cpu* c){
 
     if(p->state == RUNNABLE){
       p->accumulator += p->priority;  
-      pq.put(p);
+      //pq.put(p);
     }
 
   }
@@ -727,7 +812,7 @@ void sp_ext_priority (struct cpu* c){
 
     if(p->state == RUNNABLE){
       p->accumulator += p->priority;  
-      pq.put(p);
+      //pq.put(p);
     }
   }
 
@@ -754,9 +839,35 @@ struct proc* proc_with_min_timestamp(void) {
     }
 
   }
+  pq.extractProc(result);
   return result;
 }
 
+
+void update_pref_field(int curr_ticks, int f_iden, struct proc* p){
+  switch (f_iden){
+    case CTIME:
+    case TTIME:
+        panic("not supposed to be updated");
+        break;
+
+    case STIME:
+        p->stime += curr_ticks; 
+        break;
+
+    case RETIME:
+        p->retime += curr_ticks; 
+        break;
+
+    case RUTIME:
+        p->rutime += curr_ticks; 
+        break;
+  
+    default:
+        panic("field does not exist");
+  }
+
+}
 
 
 

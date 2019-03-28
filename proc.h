@@ -13,9 +13,21 @@
 #define TQ_THRESHOLD 100
 #define RRS_ACC_VAL 0
 
+//performace field identifiers:
+#define CTIME 1
+#define TTIME 2
+#define STIME 3
+#define RETIME 4
+#define RUTIME 5
 
-
-
+//perf struct - 3.5
+struct perf {
+  int ctime;
+  int ttime;
+  int stime;
+  int retime;
+  int rutime;
+};
 
 
 // Per-CPU state
@@ -69,6 +81,8 @@ struct proc {
   struct file *ofile[NOFILE];    // Open files
   struct inode *cwd;             // Current directory  
   char name[16];                 // Process name (debugging)
+
+  int status;                    //the process' status
 
   long long accumulator;         // priority's accumulator
   int priority;                  // process's priority

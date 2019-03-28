@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct perf;
 
 // bio.c
 void            binit(void);
@@ -123,6 +124,7 @@ void            yield(void);
 int 			detach(int);
 void 			priority(int);  
 void 			policy(int); 
+int 			wait_stat(int* , struct perf*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -208,3 +210,5 @@ void 			sp_ext_priority (struct cpu*);
 
 void 			set_all_accumulators(int);
 void 			set_filtered_priorities(int,int);
+
+void 			update_pref_field(int, int,  struct proc*);

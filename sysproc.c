@@ -135,3 +135,20 @@ sys_policy(void)
 
   return policy_iden;
 }
+
+int 
+sys_wait_stat(void)
+{
+  int* status; 
+  struct perf* performance;
+
+  if(argptr(0, (void*)&status, sizeof(status)) < 0)
+    return -1; 
+
+  if(argptr(0, (void*)&performance, sizeof(performance)) < 0)
+    return -1; 
+
+  return wait_stat(status, performance); 
+
+
+}
